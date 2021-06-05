@@ -1,5 +1,6 @@
 import numpy as np
 from time import perf_counter as pf
+from matplotlib import pyplot as plt
 
 
 def timer(function):
@@ -60,18 +61,28 @@ def multiVarLinReg(inputs, outputs) -> np.ndarray:
     weights = np.full((1, NOofFeatures), 10, np.float32)
     cost = 100
     prevCost = 88888888
+    index = 0
+    iter = []
+    costs = []
     while cost != prevCost:
         tempCost = cost
         temp = weights
         for j in range(len(weights)):
             weights[j] -= (RATE/NOofItems)*sum([(np.dot(temp, inputs[i]) - outputs[i])*inputs[i] for i in range(NOofItems)])
-            cost = float(sum([(np.dot(weights, inputs[i]) - outputs[i])**2 for i in range(NOofItems)]))/(2*NOofItems)
+        cost = float(sum([(np.dot(weights, inputs[i]) - outputs[i])**2 for i in range(NOofItems)]))/(2*NOofItems)
+        costs.append(cost)
+        index += 1
+        iter.append(index)
         prevCost = tempCost
     alphabet = 'abcdefghijklmnopqrstuvwxyz'
     string = str(weights[0][0])
     for index in range(1, len(weights[0])):
         string +=' +' + str(weights[0][index]) + '' + alphabet[index - 1]
     print(string)#Prints Linear Regression equation
+    print("Cost is:", cost)
+    print(iter, costs)
+    plt.plot(iter, cost)
+    #plt.show()
     return(weights)
 
 
