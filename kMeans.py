@@ -52,16 +52,19 @@ def kMeans(NOofCentroids, data):
     if dimensions == 2:
         fig = plt.figure()
         ax = fig.gca()
-        ax.scatter(data[:, 0], data[:, 1])
+        for assignment in assignments:
+            ax.scatter(np.array(assignment)[:, 0], np.array(assignment)[:, 1])
         for centroid in centroids:
             ax.scatter(centroid[0], centroid[1])
         plt.show()
     if dimensions == 3:
+
         fig = plt.figure()
         ax = plt.axes(projection='3d')
-        ax.scatter3D(data[:, 0], data[:, 1], data[:, 2])
+        for assignment in assignments:
+            ax.scatter3D(np.array(assignment)[:, 0], np.array(assignment)[:, 1], np.array(assignment)[:, 2])
         for centroid in centroids:
-            ax.scatter(centroid[0], centroid[1], centroid[2])
+            ax.scatter3D(centroid[0], centroid[1], centroid[2])
         plt.show()
 
     string = f'Centroids = {centroids.tolist()}; Assignments ='
@@ -72,6 +75,7 @@ def kMeans(NOofCentroids, data):
 
 
 # Anderson Iris Set; Features included: Sepal Length and Width, Petal Length
+'''
 data = [[4.9, 3.0]
     , [4.7, 3.2]
     , [4.6, 3.1]
@@ -170,7 +174,6 @@ data = [[4.9, 3.0]
     , [5.7, 2.9]
     , [6.2, 2.9]
     , [5.1, 2.5]]
-
 '''
 data = [[5.1, 3.5, 1.4]
     , [4.9, 3.0, 1.4]
@@ -272,5 +275,5 @@ data = [[5.1, 3.5, 1.4]
     , [6.2, 2.9, 4.3]
     , [5.1, 2.5, 3.0]
     , [5.7, 2.8, 4.1]]
-'''
+
 kMeans(2, data)
