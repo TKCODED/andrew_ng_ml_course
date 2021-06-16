@@ -1,7 +1,20 @@
 from random import randint
 import numpy as np
+from time import perf_counter as pf
 
 
+def timer(function):
+    def wrapper(*args, **kwargs):
+        t0 = pf()
+        proccessedFunc = function(*args, **kwargs)
+        t1 = pf()
+        time = t1 - t0
+        print(function.__name__,"took",time,"second.")
+        return proccessedFunc
+    return wrapper
+
+
+@timer
 def kMeans(NOofCentroids, data):
     data = np.array(data)
     dimensions = len(data[0])
