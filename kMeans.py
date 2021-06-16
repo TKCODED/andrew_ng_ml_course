@@ -32,7 +32,15 @@ def kMeans(NOofCentroids, data):
         assignments = np.array(assignments)
         centroids = np.array([np.mean(assignments[index], axis = 0) for index in range(NOofCentroids)])#Gets the mean point of each assignments and makes it the new centroid for that cluster
         prevCentroids = temp
-    return centroids.tolist(), assignments.tolist()
+    assignments = assignments.tolist()
+    for i in range(len(assignments)):
+        if type(assignments[i]) == list:
+            for j in range(len(assignments[i])):
+                assignments[i][j] = assignments[i][j].tolist()
+        else:
+            assignments[i] = assignments[i].tolist()
+    print(f'Centroids = {centroids.tolist()}; Assignments = {assignments}')
+    return centroids.tolist(), assignments
 
 
 
