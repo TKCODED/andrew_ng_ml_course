@@ -59,12 +59,12 @@ def multiVarLinReg(inputs, outputs) -> np.ndarray:
         input.insert(0, 1)#Inserts 1 into each group of label at index 0 to compensate for the constant weight.
     inputs = np.array(inputs)
     weights = np.full((1, NOofFeatures), 10, np.float32)
-    cost = 100
+    cost = float(sum([(np.dot(weights, inputs[i]) - outputs[i])**2 for i in range(NOofItems)]))/(2*NOofItems)
     prevCost = 88888888
     index = 0
     iter = []
     costs = []
-    while cost != prevCost:
+    while cost < prevCost:
         tempCost = cost
         temp = weights
         for j in range(len(weights)):
@@ -80,9 +80,8 @@ def multiVarLinReg(inputs, outputs) -> np.ndarray:
         string +=' +' + str(weights[0][index]) + '' + alphabet[index - 1]
     print(string)#Prints Linear Regression equation
     print("Cost is:", cost)
-    print(iter, costs)
-    plt.plot(iter, cost)
-    #plt.show()
+    plt.plot(iter, costs)
+    plt.show()
     return(weights)
 
 
