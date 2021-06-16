@@ -37,7 +37,7 @@ def kMeans(NOofCentroids, data):
             index = np.nanargmin([np.linalg.norm(point - centroid) for centroid in
                                   centroids])  # Returns index of the centroid that is closest to point
             assignments[index].append(point)  # Assigns each point to a centroid
-        assignments = np.array(assignments, np.float32)
+        assignments = np.array(assignments)
         centroids = np.array([np.mean(assignments[index], axis=0) for index in range(
             NOofCentroids)], np.float32)  # Gets the mean point of each assignments and makes it the new centroid for that cluster
         prevCentroids = temp
