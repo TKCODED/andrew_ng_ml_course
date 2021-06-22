@@ -141,5 +141,6 @@ data = [[1, 1, 1], [5, 5, 5], [5, 6, 5], [4, 5, 6], [7, 5, 6], [8, 8, 8], [5, 4,
         [4, 4, 6], [5.5, 5, 5], [5, 5.5, 5], [4.5, 5, 5.5]]
 labelz = [1, 0, 0, 0, 1, 1, 0, 1, 0, 0, 0, 0, 0]
 
+#If u want to see the graph of the most accurate epsilon set graph to True and epsilons list to only that value
 print(epsilonInput(epsilons=[1 / (10 + (n / 2)) for n in range(1, 10000)])(multiProductGaussian)(data, labels=labelz, graph=False))
 print(epsilonInput(epsilons=[1 / (10 + (n / 2)) for n in range(1, 10000)])(multiVariateGaussian)(data, labels=labelz, graph=False))
