@@ -40,9 +40,6 @@ def logisticalReg(inputs, outputs, RATE=1):
     while index < 50000:
         tempCost = cost
         temp = weights
-        b = np.array(
-            [1 / (1 + np.exp(-np.dot(temp.transpose(), inputs[i, :]))) for i in range(NOofItems)])
-
         weights = np.subtract(weights, ((RATE / NOofItems) * np.matmul(inputs.transpose(), np.array(
             [(1 / (1 + np.exp(-np.dot(temp.transpose(), inputs[i,:]))) - outputs[i]) for i in range(NOofItems)]))))
         activationOfInputs = [1 / (1 + np.exp(-np.dot(weights.transpose(), inputs[i,:]))) for i in range(NOofItems)]
