@@ -5,6 +5,18 @@ from matplotlib import pyplot as plt
 from mpl_toolkits import mplot3d
 
 
+def timer(function):
+    def wrapper(*args, **kwargs):
+        t0 = pf()
+        proccessedFunc = function(*args, **kwargs)
+        t1 = pf()
+        time = t1 - t0
+        print(function.__name__, "took", time, "second.")
+        return proccessedFunc
+
+    return wrapper
+
+
 class network:
     def __init__(self, config, inputs, labels, lamda=0):
         self.config = config  # List of the number of units for each layer excluding the input layer and including the output layer
@@ -49,19 +61,21 @@ class network:
         return self.cost
 
     def backward(self, input):  # Takes in a datapoint at a time
-        dOut = np.subtract(self.y[len(self.results) - 1, :], self.layers[-1].activation) #It uses the length of results to get the index of the input to get the correct y-value
+        dOut = np.subtract(self.y[len(self.results) - 1, :], self.layers[
+            -1].activation)  # It uses the length of results to get the index of the input to get the correct y-value
         dOut = dOut.reshape(-1, 1)
         d = []
         d.append(dOut)
         deltas = []
         for j in range(len(self.layers) - 1):
-            #print(d[j].shape, j)
-            #print(self.layers[-2 - j].activation.reshape(-1,1).transpose().shape, j)
-            delta = np.matmul(d[j], self.layers[-2 - j].activation.reshape(-1,1).transpose())
+            # print(d[j].shape, j)
+            # print(self.layers[-2 - j].activation.reshape(-1,1).transpose().shape, j)
+            delta = np.matmul(d[j], self.layers[-2 - j].activation.reshape(-1, 1).transpose())
             deltas.append(delta)
-            sigmoidGradient = self.sigmoidGradient(np.array(self.layers[-2 - j].z)).reshape(-1,1)
-            d.append(np.multiply(np.matmul(self.layers[-2 - j].weights[:, 1:], d[-1]), sigmoidGradient))#SIGMOID GRADIENT INDEX MIGHT BE WRONG
-        delta = np.multiply(d[-1], input.reshape(-1,1).transpose())
+            sigmoidGradient = self.sigmoidGradient(np.array(self.layers[-2 - j].z)).reshape(-1, 1)
+            d.append(np.multiply(np.matmul(self.layers[-2 - j].weights[:, 1:], d[-1]),
+                                 sigmoidGradient))  # SIGMOID GRADIENT INDEX MIGHT BE WRONG
+        delta = np.multiply(d[-1], input.reshape(-1, 1).transpose())
         deltas.append(delta)
         # d.append(np.multiply(d[-1], self.layers[-2 - j].weights[:, 1:-1])) d1 not needed as we are not going to change the inputs of the network
         deltas = deltas[::-1]
@@ -81,7 +95,7 @@ class network:
             weightsGradients = np.add(weightsGradients, self.backward(self.input.inputs[i]))
         for j in range(len(self.layers)):
             self.layers[j].weights = np.add(self.layers[j].weights, weightsGradients[j])
-        print("COST:",self.findCost())
+        print("COST:", self.findCost())
 
     def sigmoid(self, input):
         return 1 / (1 + np.exp(-input))
