@@ -5,6 +5,7 @@ from matplotlib import pyplot as plt
 import pandas as pd
 from tensorflow.keras.datasets import mnist
 
+
 def timer(function):
     def wrapper(*args, **kwargs):
         t0 = pf()
@@ -29,6 +30,11 @@ class network:
         self.results = np.empty((0, config[-1]))
         self.lamda = lamda
         self.cost = 0
+        self.costs = []
+        self.costsIters = []
+        self.accuracies = []
+        self.accuracyIters = []
+        self.index = 0
 
     def train(self, inputs):# Works only for balanced networks and regularization for gradients have not been added
         y = self.y[0:len(inputs), :]
@@ -42,7 +48,15 @@ class network:
             if l != len(self.layers) - 1:
                 self.layers[l].activation = np.insert(self.layers[l].activation, 0, 1, axis=1)
         self.results = np.vstack((self.results, self.layers[-1].activation))
-       #Backprop
+        #Accuracy
+        results = np.equal(np.argmax(self.layers[-1].activation), self.labels).transpose()[0]
+        results = np.where(results == True, 1, results)
+        results = np.where(results == False, 0, results)
+        accuracy = np.sum(results) / len(results)
+        self.accuracies.append(accuracy)
+        self.accuracyIters.append(self.index)
+        print(f"Accuracy: {accuracy * 100}%")
+        #Backprop
         d = []
         d.append(np.subtract(self.layers[-1].activation, y))#Does d for the output layer
         for l in range(len(self.layers) - 1):
@@ -54,8 +68,11 @@ class network:
         for l in range(1, len(self.layers)):
             deltas.append(np.matmul(self.layers[l - 1].activation.transpose(), d[l]).transpose()/len(inputs))
         for j in range(len(self.layers)):
-            self.layers[j].weights = np.add(self.layers[j].weights, np.add(deltas[j], (self.lamda/len(inputs))*self.layers[j].weights))
+            self.layers[j].weights = np.add(self.layers[j].weights, 1000 * np.add(deltas[j], (self.lamda/len(inputs))*self.layers[j].weights))
         print("COST:", self.findCost(size=len(y)))
+        self.costs.append(self.findCost(size=len(y)))
+        self.costsIters.append(self.index)
+        self.index += 1
 
     def findCost(self, size=None):
         if not size:
@@ -63,7 +80,7 @@ class network:
         self.results = np.round(self.results, 10)
         self.results[self.results == 1] = 0.999999999
         self.results[self.results == 0] = 0.000000001
-        self.cost = -np.sum(np.multiply(self.y[0:size ,:], np.log(self.results[-size:, :])) - np.multiply( #Takes the last size amount from self.results, which matches
+        self.cost = np.sum(np.multiply(self.y[0:size ,:], np.log(self.results[-size:, :])) - np.multiply( #Takes the last size amount from self.results, which matches
             np.subtract(1, self.y[0:size, :]), np.log(self.results[-size:, :]))) / len(self.results[-size:, :]) \
              + (self.lamda / (2 * len(self.results))) * np.sum([np.sum(self.layers[j].weights) for j in range(len(self.layers))])
         return self.cost
@@ -76,9 +93,24 @@ class network:
         return input
 
     def test(self, inputs, outputs):
-        predictions = np.array([self.predict(input) for input in inputs])
-        #print(predictions)
-        results = np.equal(predictions, outputs)
+        predictions = np.array([np.argmax(self.predict(input)) for input in inputs])
+        results = np.equal(predictions, outputs.transpose())[0]
+        results = np.where(results == True, 1, results)
+        results = np.where(results == False, 0, results)
+        accuracy = np.sum(results)/len(results)
+        print(f"Accuracy: {accuracy*100}%")
+
+    def plot(self, costs=True, accuracies=True):
+        if costs:
+            plt.plot(self.costsIters, self.costs)
+            plt.xlabel("Training Iteration")
+            plt.ylabel("Cost")
+            plt.show()
+        if accuracies:
+            plt.plot(self.accuracyIters, self.accuracies)
+            plt.xlabel("Training Iteration")
+            plt.ylabel("Accuracy")
+            plt.show()
 
     def learningCurve(self, size=None):
         if not size:
@@ -136,6 +168,11 @@ x_test = x_test[~np.isnan(y_test).any(axis=1)]
 y_test = y_test[~np.isnan(y_test).any(axis=1)]#Removes rows from inputs and output of rows in input that have NAN values
 n = network([784, 10], x_train, y_train)
 #print([layer.weights for layer in n.layers])
-n.train(n.input.inputs)
-#print([layer.weights for layer in n.layers])
+
+for _ in range(10):
+    n.train(n.input.inputs)
+
 n.test(x_test, y_test)
+n.plot()
+
+#print([layer.weights for layer in n.layers])
