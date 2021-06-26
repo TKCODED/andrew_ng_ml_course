@@ -3,7 +3,7 @@ from time import perf_counter as pf
 import random
 from matplotlib import pyplot as plt
 import pandas as pd
-
+from tensorflow.keras.datasets import mnist
 
 def timer(function):
     def wrapper(*args, **kwargs):
@@ -21,12 +21,11 @@ class network:
         self.config = config  # List of the number of units for each layer excluding the input layer and including the output layer
         self.input = self.inputLayer(inputs)
         self.layers = [self.layer(config[i + 1], config[i]) for i in range(len(config) - 1)]
-        self.layers.insert(0, self.layer(config[0], len(inputs[0]) - 1))
+        self.layers.insert(0, self.layer(config[0], len(inputs[0])))
         self.labels = labels
         self.y = np.zeros((len(inputs), self.config[-1]))
-        for index in range(len(
-                self.labels)):  # Creates a 0 matrix that have 1's in the column of each correct label for every ith row
-            self.y[index][self.labels[index] - 1] = 1
+        for index in range(len(self.labels)):  # Creates a 0 matrix that have 1's in the column of each correct label for every ith row
+            self.y[index, self.labels[index][0]] = 1
         self.results = np.empty((0, config[-1]))
         self.lamda = lamda
         self.cost = 0
@@ -76,6 +75,11 @@ class network:
             input = self.sigmoid(np.matmul(input, layer.weights.transpose()))
         return input
 
+    def test(self, inputs, outputs):
+        predictions = np.array([self.predict(input) for input in inputs])
+        #print(predictions)
+        results = np.equal(predictions, outputs)
+
     def learningCurve(self, size=None):
         if not size:
             size = len(self.input.inputs)
@@ -88,7 +92,6 @@ class network:
         plt.plot(iters, costs)
         plt.show()
 
-
     def sigmoid(self, input):
         return 1 / (1 + np.exp(-input))
 
@@ -99,26 +102,40 @@ class network:
         def __init__(self, units, prevNOunits):
             self.units = units
             self.prevNOunits = prevNOunits
-            self.weights = np.array([[random.randint(0, 30) for _ in range(self.prevNOunits + 1)] for _ in range(self.units)])
+            self.weights = np.array([[random.random() for _ in range(self.prevNOunits + 1)] for _ in range(self.units)])
             self.activation = []
             self.z = []
 
     class inputLayer:
         def __init__(self, inputs):
             self.inputs = inputs
-            for input in inputs:
-                input.insert(0, 1)
+            self.inputs = np.insert(self.inputs, 0, 1, axis=1)
             self.inputs = self.precproccessing(self.inputs)
             self.inputs[:, 0] = 1
 
         def precproccessing(self, data):  # So infinities do not come from the const function
-            data = np.array(data)
             data = np.subtract(data, np.mean(data, axis=0))
-            data /= np.std(data, axis=0)
+            std = np.std(data, axis=0)
+            std[std == 0] = 1
+            data /= std
             return data
 
-n = network([4, 2, 8, 6, 5, 3], [[random.randint(1,10), random.randint(1,10), random.randint(1,10)]  for _ in range(10000)], [random.randint(0,3) for _ in range(10000)])
 
-print("WEIGHTS:", [n.layers[j].weights for j in range(len(n.layers))])
+(x_train, y_train), (x_test, y_test) = mnist.load_data()
+x_train = x_train.reshape(60000, 784)
+y_train = y_train.reshape(-1,1)
+y_train = y_train[~np.isnan(x_train).any(axis=1)]#Removes rows from inputs and output of rows in input that have NAN values
+x_train = x_train[~np.isnan(x_train).any(axis=1)]
+x_train = x_train[~np.isnan(y_train).any(axis=1)]
+y_train = y_train[~np.isnan(y_train).any(axis=1)]#Removes rows from inputs and output of rows in input that have NAN values
+x_test = x_test.reshape(10000, 784)
+y_test = y_test.reshape(-1,1)
+y_test = y_test[~np.isnan(x_test).any(axis=1)]#Removes rows from inputs and output of rows in input that have NAN values
+x_test = x_test[~np.isnan(x_test).any(axis=1)]
+x_test = x_test[~np.isnan(y_test).any(axis=1)]
+y_test = y_test[~np.isnan(y_test).any(axis=1)]#Removes rows from inputs and output of rows in input that have NAN values
+n = network([784, 10], x_train, y_train)
+#print([layer.weights for layer in n.layers])
 n.train(n.input.inputs)
-print("WEIGHTS:", [n.layers[j].weights for j in range(len(n.layers))])
+#print([layer.weights for layer in n.layers])
+n.test(x_test, y_test)
