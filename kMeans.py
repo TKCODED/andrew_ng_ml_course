@@ -19,6 +19,10 @@ def timer(function):
 
 @timer
 def kMeans(NOofCentroids, data):
+    costs = []
+    iters = []
+    cost = 0
+    iter = 0
     data = np.array(data)
     dimensions = len(data[0])
     centroids = np.array([[randrange(np.min(np.ceil(data[:, 0])), np.max(np.ceil(data[:, 0]))) for _ in range(
@@ -41,6 +45,7 @@ def kMeans(NOofCentroids, data):
         centroids = np.array([np.mean(assignments[index], axis=0) for index in range(
             NOofCentroids)], np.float32)  # Gets the mean point of each assignments and makes it the new centroid for that cluster
         prevCentroids = temp
+
     assignments = assignments.tolist()
     if dimensions == 2:
         for i in range(len(assignments)):
@@ -58,8 +63,6 @@ def kMeans(NOofCentroids, data):
             ax.scatter(centroid[0], centroid[1])
         plt.show()
     if dimensions == 3:
-
-        fig = plt.figure()
         ax = plt.axes(projection='3d')
         for assignment in assignments:
             ax.scatter3D(np.array(assignment)[:, 0], np.array(assignment)[:, 1], np.array(assignment)[:, 2])
@@ -325,4 +328,5 @@ data = [[5.1, 3.5, 1.4]
     , [6.5, 3.0, 5.2]
     , [6.2, 3.4, 5.4]
     , [5.9, 3.0, 5.1]]
+
 kMeans(3, data)

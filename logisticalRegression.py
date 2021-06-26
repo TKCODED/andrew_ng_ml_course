@@ -24,6 +24,7 @@ def precproccessing(data):  # So infinities do not come from the const function
 
 
 def logisticalReg(inputs, outputs, RATE=1):
+    print(inputs)
     NOofFeatures = len(inputs[0])
     NOofItems = len(inputs)
     mean = np.mean(np.array(inputs), axis=0)[1]#Gets the mean of the variabele
@@ -37,7 +38,7 @@ def logisticalReg(inputs, outputs, RATE=1):
     iters = []
     costs = []
 
-    while index < 50000:
+    while index < 5000:
         tempCost = cost
         temp = weights
         weights = np.subtract(weights, ((RATE / NOofItems) * np.matmul(inputs.transpose(), np.array(
@@ -48,7 +49,6 @@ def logisticalReg(inputs, outputs, RATE=1):
         activationOfInputs[activationOfInputs == 0] = 0.0000001
         cost = np.nansum(np.subtract(np.multiply(outputs, -np.log(activationOfInputs)),   np.multiply(np.subtract(1, outputs),
                                                  np.log(np.subtract(1, activationOfInputs))))) / NOofItems
-        print(cost)
         costs.append(cost)
         index += 1
         iters.append(index)
@@ -62,10 +62,21 @@ def logisticalReg(inputs, outputs, RATE=1):
     print(f'Mean = {mean}, Standard Deviation = {std}')
     print(f"Function is: 1/1+e^-({string})")  # Prints Logistical Regression equation
     print("Cost is:", cost)
+    #plt.plot(iters, costs)
+    #plt.show()
+    return (weights, cost)
+
+
+def learningCurve(inputs, outputs, rate=1, size=None):
+    if not size:
+        size = len(inputs)
+    costs, iters = [], []
+    for i in range(1, size):
+        cost = logisticalReg(inputs[0:i], outputs[0:i], RATE=rate)[1]
+        costs.append(cost)
+        iters.append(i)
     plt.plot(iters, costs)
     plt.show()
-    return (weights)
-
 
 inputs = [[1, i,i**2,i**3,i**4,i**5,i**6] for i in range(1,10)]
 outputs = [1, 1, 1, 0, 0, 0, 0, 1, 1]
@@ -81,6 +92,6 @@ outputs = [1, 1, 1, 0, 0, 0, 0, 1, 1]
 # outputs[outputs <= 15] = 0
 # outputs[outputs > 15] = 1
 
-print(logisticalReg(inputs, outputs, RATE=1))
+print(learningCurve(inputs, outputs))
 
 # print(logisticalReg(inputs, outputs))
