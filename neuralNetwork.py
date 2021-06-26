@@ -22,7 +22,6 @@ class network:
         self.input = self.inputLayer(inputs)
         self.layers = [self.layer(config[i + 1], config[i]) for i in range(len(config) - 1)]
         self.layers.insert(0, self.layer(config[0], len(inputs[0]) - 1))
-        print("UNITS:", [( layer.prevNOunits, layer.units) for layer in self.layers])
         self.labels = labels
         self.y = np.zeros((len(inputs), self.config[-1]))
         for index in range(len(
@@ -47,30 +46,19 @@ class network:
        #Backprop
         d = []
         d.append(np.subtract(self.layers[-1].activation, y))#Does d for the output layer
-        print(d[0].shape)
-        print(self.layers[-1].weights.shape)
         for l in range(len(self.layers) - 1):
-            print("D", d[-1].shape)
-            print("Weigths", self.layers[-1 - l].weights[:, 1:].shape)
-            print("SIG", self.sigmoidGradient(np.array(self.layers[-2 - l].z)).shape)
             epsilon = np.multiply(np.matmul(d[-1], self.layers[-1 - l].weights[:, 1:]), self.sigmoidGradient(np.array(self.layers[-2 - l].z)))
             d.append(epsilon)
         d = d[::-1]
         deltas =[]
         deltas.append(np.matmul(d[0].transpose(), inputs))# Does delta for inputs
         for l in range(1, len(self.layers)):
-            print(self.layers[len(self.layers) - 1 - l].activation.transpose().shape)
-            print(d[l].shape)
-            deltas.append(np.matmul(self.layers[len(self.layers) - 1 - l].activation.transpose(), d[l]).transpose()/len(inputs))
-        print("D", [s.shape for s in d])
-        print("DELTAS:", [delta.shape for delta in deltas])
-        print("WEIGHTS", [layer.weights.shape for layer in self.layers])
+            deltas.append(np.matmul(self.layers[l - 1].activation.transpose(), d[l]).transpose()/len(inputs))
         for j in range(len(self.layers)):
             self.layers[j].weights = np.add(self.layers[j].weights, np.add(deltas[j], (self.lamda/len(inputs))*self.layers[j].weights))
         print("COST:", self.findCost(size=len(y)))
 
     def findCost(self, size=None):
-        print(self.results.shape)
         if not size:
             size = len(self.y)# Finds cost after the entire dataset has been proccessed
         self.results = np.round(self.results, 10)
