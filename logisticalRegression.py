@@ -17,6 +17,10 @@ def timer(function):
     return wrapper
 
 
+def sigmoid(input):
+    return 1 / (1 + np.exp(-input))
+
+
 def precproccessing(data):  # So infinities do not come from the const function
     data = np.subtract(data, np.mean(data, axis=0))
     data /= np.std(data, axis=0)
@@ -40,11 +44,9 @@ def logisticalReg(inputs, outputs, RATE=1):
 
     while index < 50000:
         tempCost = cost
-        temp = weights
-        weights = np.subtract(weights, ((RATE / NOofItems) * np.matmul(inputs.transpose(), np.array(
-            [(1 / (1 + np.exp(-np.dot(temp.transpose(), inputs[i, :]))) - outputs[i]) for i in range(NOofItems)]))))
-        activationOfInputs = [1 / (1 + np.exp(-np.dot(weights.transpose(), inputs[i, :]))) for i in range(NOofItems)]
-        activationOfInputs = np.array([i.tolist() for i in activationOfInputs])
+        weights = np.subtract(weights, ((RATE / NOofItems) * np.matmul(inputs.transpose(), sigmoid(np.matmul(inputs ,weights)) - outputs)))
+        activationOfInputs = sigmoid(np.matmul(inputs ,weights)) - outputs
+        #activationOfInputs = np.array([i.tolist() for i in activationOfInputs])
         activationOfInputs[activationOfInputs == 1] = 0.9999999
         activationOfInputs[activationOfInputs == 0] = 0.0000001
         cost = np.nansum(
@@ -63,7 +65,7 @@ def logisticalReg(inputs, outputs, RATE=1):
         string += ' +' + str(weights[index]) + '' + alphabet[index - 1]
     print(f'Mean = {mean}, Standard Deviation = {std}')
     print(f"Function is: 1/1+e^-({string})")  # Prints Logistical Regression equation
-    print("Cost is:", cost)
+    print("Cost is:", prevCost)
     x = np.linspace(0, len(inputs), 1000)
     y = np.zeros(1000)
     expression = [weights[i] * (((x - mean) / std) ** i) for i in range(len(weights))]
@@ -113,6 +115,6 @@ inputs = [[1, i, i**2, i**3] for i in range(1, len(outputs) + 1)]
 # outputs[outputs <= 15] = 0
 # outputs[outputs > 15] = 1
 
-print(logisticalReg(inputs, outputs))
+print(logisticalReg(inputs, outputs, RATE=0.1))
 
 # print(logisticalReg(inputs, outputs))
