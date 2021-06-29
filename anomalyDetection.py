@@ -43,6 +43,7 @@ def inList(nparray, list):
     return False
 
 
+#@epsilonInput(epsilons=[1 / (10 + (n / 2)) for n in range(1, 10000)])
 def multiVariateGaussian(data, labels=None, epsilon=0.5, x=None, graph=True):  # labels are 1 for anomalous data or 0 for normal data
     data = np.array(data)
     covar = np.cov(data.transpose())
@@ -92,6 +93,7 @@ def multiVariateGaussian(data, labels=None, epsilon=0.5, x=None, graph=True):  #
         return 1 - (incorrect / len(data))
 
 
+#@epsilonInput(epsilons=[1 / (10 + (n / 2)) for n in range(1, 10000)])
 def multiProductGaussian(data, labels=None, epsilon=0.5, x=None, graph=True):
     data = np.array(data)
     mean = np.mean(data, axis=0)
@@ -141,6 +143,8 @@ data = [[1, 1, 1], [5, 5, 5], [5, 6, 5], [4, 5, 6], [7, 5, 6], [8, 8, 8], [5, 4,
         [4, 4, 6], [5.5, 5, 5], [5, 5.5, 5], [4.5, 5, 5.5]]
 labelz = [1, 0, 0, 0, 1, 1, 0, 1, 0, 0, 0, 0, 0]
 
+
 #If u want to see the graph of the most accurate epsilon set graph to True and epsilons list to only that value
-print(epsilonInput(epsilons=[1 / (10 + (n / 2)) for n in range(1, 10000)])(multiProductGaussian)(data, labels=labelz, graph=False))
-print(epsilonInput(epsilons=[1 / (10 + (n / 2)) for n in range(1, 10000)])(multiVariateGaussian)(data, labels=labelz, graph=False))
+print("Accuracy:", multiProductGaussian(data,labels=labelz,graph=True,epsilon=0.006060606060606061))
+#print(epsilonInput(epsilons=[1 / (10 + (n / 2)) for n in range(1, 10000)])(multiProductGaussian)(data, labels=labelz, graph=False))
+#print(epsilonInput(epsilons=[1 / (10 + (n / 2)) for n in range(1, 10000)])(multiVariateGaussian)(data, labels=labelz, graph=False))
