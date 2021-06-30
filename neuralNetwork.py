@@ -36,60 +36,85 @@ class network:
         self.accuracyIters = []
         self.index = 0
 
-    def train(self, inputs):# Works only for balanced networks and regularization for gradients have not been added
-        y = self.y[0:len(inputs), :]
-        #Forward
+    def train(self, inputs, runs=1, rate=1, dropout=None):# Works only for balanced networks and regularization for gradients have not been added
+        for _ in range(runs):
+            #Forward
+            self.layers[0].z = np.matmul(inputs, self.layers[0].weights.transpose())
+            self.layers[0].activation = self.ReLu(np.array(self.layers[0].z))
+            accuracy = np.sum(results) / len(results)
+            if dropout:#Droput variable hold the percentage of units that are kept thus is from 0-1
+                dropMatrix = np.random.rand(self.layers[0].activation.shape[0], self.layers[0].activation.shape[1]) < dropout
+                self.layers[0].activation = np.multiply(self.layers[0].activation, dropMatrix)
+                self.layers[0].activation /= dropout
+                #Applied before putting in the bias term to not drop it
+            if len(self.layers) - 1 != 0:
+                self.layers[0].activation = np.insert(self.layers[0].activation, 0, 1, axis=1)
+            for l in range(1, len(self.layers)):
+                self.layers[l].z= np.matmul(self.layers[l-1].activation, self.layers[l].weights.transpose())
+                self.layers[l].activation = self.ReLu(np.array(self.layers[l].z))
+                if dropout:  # Droput variable hold the percentage of units that are kept thus is from 0-1
+                    dropMatrix = np.random.rand(self.layers[l].activation.shape[0], self.layers[l].activation.shape[1]) < dropout
+                    self.layers[l].activation = np.multiply(self.layers[l].activation, dropMatrix)
+                    self.layers[l].activation /= dropout
+                    # Applied before putting in the bias term to not drop it
+                if l != len(self.layers) - 1:
+                    self.layers[l].activation = np.insert(self.layers[l].activation, 0, 1, axis=1)
+            self.results = np.vstack((self.results, self.layers[-1].activation))
+            #print("Answers:", self.layers[-1].activation)
+            #Accuracy
+            results = np.equal(np.argmax(self.layers[-1].activation, axis=1), self.labels).transpose()[0]
+            results = np.where(results == True, 1, results)
+            results = np.where(results == False, 0, results)
+            accuracy = np.sum(results) / len(results)
+            self.accuracies.append(accuracy)
+            self.accuracyIters.append(self.index)
+            print(f"Train Accuracy: {accuracy * 100}%")
+            #Backprop
+            d = []
+            y = self.y[0:len(inputs), :]
+            d.append(np.subtract(self.layers[-1].activation, y))#Does d for the output layer
+            for l in range(len(self.layers) - 1):
+                epsilon = np.multiply(np.matmul(d[-1], self.layers[-1 - l].weights[:, 1:]), self.ReLuGradient(np.array(self.layers[-2 - l].z)))
+                d.append(epsilon)
+            d = d[::-1]
+            deltas =[]
+            deltas.append(np.matmul(d[0].transpose(), inputs))# Does delta for inputs
+            for l in range(1, len(self.layers)):
+                deltas.append(np.matmul(self.layers[l - 1].activation.transpose(), d[l]).transpose()/len(inputs))
+            for j in range(len(self.layers)):
+                self.layers[j].weights = np.subtract(self.layers[j].weights, rate * np.add(deltas[j], (self.lamda/len(inputs))*self.layers[j].weights))
+            print("COST:", self.findCost(size=len(y)))
+            self.costs.append(self.findCost(size=len(y)))
+            self.costsIters.append(self.index)
+            self.index += 1
+
+        # Forward
         self.layers[0].z = np.matmul(inputs, self.layers[0].weights.transpose())
-        self.layers[0].activation = self.sigmoid(np.array(self.layers[0].z))
+        self.layers[0].activation = self.ReLu(np.array(self.layers[0].z))
         self.layers[0].activation = np.insert(self.layers[0].activation, 0, 1, axis=1)
         for l in range(1, len(self.layers)):
-            self.layers[l].z= np.matmul(self.layers[l-1].activation, self.layers[l].weights.transpose())
-            self.layers[l].activation = self.sigmoid(np.array(self.layers[l].z))
+            self.layers[l].z = np.matmul(self.layers[l - 1].activation, self.layers[l].weights.transpose())
+            self.layers[l].activation = self.ReLu(np.array(self.layers[l].z))
             if l != len(self.layers) - 1:
                 self.layers[l].activation = np.insert(self.layers[l].activation, 0, 1, axis=1)
-        self.results = np.vstack((self.results, self.layers[-1].activation))
-        #Accuracy
-        results = np.equal(np.argmax(self.layers[-1].activation), self.labels).transpose()[0]
-        results = np.where(results == True, 1, results)
-        results = np.where(results == False, 0, results)
-        accuracy = np.sum(results) / len(results)
-        self.accuracies.append(accuracy)
-        self.accuracyIters.append(self.index)
-        print(f"Accuracy: {accuracy * 100}%")
-        #Backprop
-        d = []
-        d.append(np.subtract(self.layers[-1].activation, y))#Does d for the output layer
-        for l in range(len(self.layers) - 1):
-            epsilon = np.multiply(np.matmul(d[-1], self.layers[-1 - l].weights[:, 1:]), self.sigmoidGradient(np.array(self.layers[-2 - l].z)))
-            d.append(epsilon)
-        d = d[::-1]
-        deltas =[]
-        deltas.append(np.matmul(d[0].transpose(), inputs))# Does delta for inputs
-        for l in range(1, len(self.layers)):
-            deltas.append(np.matmul(self.layers[l - 1].activation.transpose(), d[l]).transpose()/len(inputs))
-        for j in range(len(self.layers)):
-            self.layers[j].weights = np.add(self.layers[j].weights, 1000 * np.add(deltas[j], (self.lamda/len(inputs))*self.layers[j].weights))
-        print("COST:", self.findCost(size=len(y)))
-        self.costs.append(self.findCost(size=len(y)))
-        self.costsIters.append(self.index)
-        self.index += 1
+        #print("Answers:", self.layers[-1].activation)
 
     def findCost(self, size=None):
         if not size:
             size = len(self.y)# Finds cost after the entire dataset has been proccessed
-        self.results = np.round(self.results, 10)
-        self.results[self.results == 1] = 0.999999999
-        self.results[self.results == 0] = 0.000000001
-        self.cost = np.sum(np.multiply(self.y[0:size ,:], np.log(self.results[-size:, :])) - np.multiply( #Takes the last size amount from self.results, which matches
-            np.subtract(1, self.y[0:size, :]), np.log(self.results[-size:, :]))) / len(self.results[-size:, :]) \
-             + (self.lamda / (2 * len(self.results))) * np.sum([np.sum(self.layers[j].weights) for j in range(len(self.layers))])
+        # self.layers[-1].activation = np.round(self.layers[-1].activation, 10)
+        # self.layers[-1].activation[self.layers[-1].activation == 1] = 0.999999999
+        # self.layers[-1].activation[self.layers[-1].activation == 0] = 0.000000001
+        self.cost = -np.sum(np.multiply(self.y[0:size,:], np.log(self.layers[-1].activation[0:size, :])) - np.multiply( #Takes the last size amount from self.results, which matches
+            np.subtract(1, self.y[0:size, :]), np.log(self.layers[-1].activation[0:size, :]))) / len(self.layers[-1].activation[0:size, :]) \
+             + (self.lamda / (2 * len(self.layers[-1].activation))) * np.sum([np.sum(self.layers[j].weights) for j in range(len(self.layers))])
         return self.cost
 
     def predict(self, input):
         input = np.array(input).reshape(-1, 1).transpose()
         for layer in self.layers:
             input = np.insert(input, 0, 1, axis=1)
-            input = self.sigmoid(np.matmul(input, layer.weights.transpose()))
+            input = self.ReLu(np.matmul(input, layer.weights.transpose()))
         return input
 
     def test(self, inputs, outputs):
@@ -98,7 +123,7 @@ class network:
         results = np.where(results == True, 1, results)
         results = np.where(results == False, 0, results)
         accuracy = np.sum(results)/len(results)
-        print(f"Accuracy: {accuracy*100}%")
+        print(f"Test Accuracy: {accuracy*100}%")
 
     def plot(self, costs=True, accuracies=True):
         if costs:
@@ -112,13 +137,13 @@ class network:
             plt.ylabel("Accuracy")
             plt.show()
 
-    def learningCurve(self, size=None):
+    def learningCurve(self, size=None): #Broken
         if not size:
             size = len(self.input.inputs)
 
         costs, iters = [], []
-        for i in range(1, size):
-            self.train(self.input.inputs[0:i,:])
+        for i in range(1, size):#Plots cost instead of accuracy
+            self.train(self.input.inputs[0:i,:])#Even though data shape changes the shape of the weights dont.
             costs.append(self.findCost(size=i))
             iters.append(i + 1)
         plt.plot(iters, costs)
@@ -130,11 +155,19 @@ class network:
     def sigmoidGradient(self, input):
         return np.multiply(self.sigmoid(input), (1 - self.sigmoid(input)))
 
+    def ReLu(self, input):
+        return np.maximum(input, 0)
+
+    def ReLuGradient(self, input):
+        input[input > 0] = 1
+        input[input <= 0] = 0
+        return input
+
     class layer:
         def __init__(self, units, prevNOunits):
             self.units = units
             self.prevNOunits = prevNOunits
-            self.weights = np.array([[random.random() for _ in range(self.prevNOunits + 1)] for _ in range(self.units)])
+            self.weights = np.array([[random.uniform(10, 30) for _ in range(self.prevNOunits + 1)] for _ in range(self.units)])
             self.activation = []
             self.z = []
 
@@ -156,23 +189,23 @@ class network:
 (x_train, y_train), (x_test, y_test) = mnist.load_data()
 x_train = x_train.reshape(60000, 784)
 y_train = y_train.reshape(-1,1)
-y_train = y_train[~np.isnan(x_train).any(axis=1)]#Removes rows from inputs and output of rows in input that have NAN values
-x_train = x_train[~np.isnan(x_train).any(axis=1)]
-x_train = x_train[~np.isnan(y_train).any(axis=1)]
-y_train = y_train[~np.isnan(y_train).any(axis=1)]#Removes rows from inputs and output of rows in input that have NAN values
+# y_train = y_train[~np.isnan(x_train).any(axis=1)]#Removes rows from inputs and output of rows in input that have NAN values
+# x_train = x_train[~np.isnan(x_train).any(axis=1)]
+# x_train = x_train[~np.isnan(y_train).any(axis=1)]
+# y_train = y_train[~np.isnan(y_train).any(axis=1)]#Removes rows from inputs and output of rows in input that have NAN values
 x_test = x_test.reshape(10000, 784)
 y_test = y_test.reshape(-1,1)
-y_test = y_test[~np.isnan(x_test).any(axis=1)]#Removes rows from inputs and output of rows in input that have NAN values
-x_test = x_test[~np.isnan(x_test).any(axis=1)]
-x_test = x_test[~np.isnan(y_test).any(axis=1)]
-y_test = y_test[~np.isnan(y_test).any(axis=1)]#Removes rows from inputs and output of rows in input that have NAN values
-n = network([784, 10], x_train, y_train)
+# y_test = y_test[~np.isnan(x_test).any(axis=1)]#Removes rows from inputs and output of rows in input that have NAN values
+# x_test = x_test[~np.isnan(x_test).any(axis=1)]
+# x_test = x_test[~np.isnan(y_test).any(axis=1)]
+# y_test = y_test[~np.isnan(y_test).any(axis=1)]#Removes rows from inputs and output of rows in input that have NAN values
+n = network([800, 10], x_train, y_train)
 #print([layer.weights for layer in n.layers])
-
-for _ in range(10):
-    n.train(n.input.inputs)
+n.train(n.input.inputs, runs=5, rate=0.00000000000007)
+print(np.argmax(n.layers[-1].activation, axis=1)[:5])
+print(y_train[:5].reshape(-1, 1).transpose())
 
 n.test(x_test, y_test)
-n.plot()
+#n.plot()
 
 #print([layer.weights for layer in n.layers])
