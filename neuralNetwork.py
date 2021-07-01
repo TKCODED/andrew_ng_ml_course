@@ -18,7 +18,7 @@ def timer(function):
 
 
 class network:
-    def __init__(self, config, inputs, labels, lamda=0):
+    def __init__(self, config, inputs, labels):
         self.config = config  # List of the number of units for each layer excluding the input layer and including the output layer
         self.input = self.inputLayer(inputs)
         self.layers = [self.layer(config[i + 1], config[i]) for i in range(len(config) - 1)]
@@ -28,16 +28,17 @@ class network:
         for index in range(len(self.labels)):  # Creates a 0 matrix that have 1's in the column of each correct label for every ith row
             self.y[index, self.labels[index][0]] = 1
         self.results = np.empty((0, config[-1]))
-        self.lamda = lamda
         self.cost = 0
         self.costs = []
         self.costsIters = []
-        self.accuracies = []
-        self.accuracyIters = []
+        self.trainAccuracies = []
+        self.trainAccuracyIters = []
+        self.testAccuracies = []
+        self.testAccuracyIters = []
         self.index = 0
 
-    def train(self, inputs, runs=1, rate=1.0, dropout=False):# Works only for balanced networks and regularization for gradients have not been added
-        for _ in range(runs):
+    def train(self, inputs, runs=1, rate=1.0, lamda=0, dropout=False, gradCheck=False):# Works only for balanced networks and regularization for gradients have not been added
+        for run in range(runs):
             #Forward
             self.layers[0].z = np.matmul(inputs, self.layers[0].weights.transpose())
             self.layers[0].activation = self.ReLu(np.array(self.layers[0].z))
@@ -66,10 +67,15 @@ class network:
             results = np.where(results == True, 1, results)
             results = np.where(results == False, 0, results)
             results = results[0]
-            accuracy = np.sum(results) / len(results)
-            self.accuracies.append(accuracy)
-            self.accuracyIters.append(self.index)
-            print(f"Train Accuracy: {accuracy * 100}%")
+            trainAccuracy = np.sum(results) / len(results)
+            self.trainAccuracies.append(trainAccuracy)
+            self.trainAccuracyIters.append(self.index)
+            print(f"Run: {run}")
+            print(f"Train Accuracy: {trainAccuracy * 100}%")
+            testAccuracy = self.test(x_test, y_test)
+            self.testAccuracies.append(testAccuracy)
+            self.testAccuracyIters.append(self.index)
+            print(f"Test Accuracy: {testAccuracy * 100}%")
             #Backprop
             d = []
             y = self.y[0:len(inputs), :]
@@ -83,11 +89,44 @@ class network:
             for l in range(1, len(self.layers)):
                 deltas.append(np.matmul(self.layers[l - 1].activation.transpose(), d[l]).transpose()/len(inputs))
             for j in range(len(self.layers)):
-                self.layers[j].weights = np.subtract(self.layers[j].weights, rate * np.add(deltas[j], (self.lamda/len(inputs))*self.layers[j].weights))
-            print("COST:", self.findCost(size=len(y)))
-            self.costs.append(self.findCost(size=len(y)))
+                self.layers[j].weights = np.subtract(self.layers[j].weights, rate * np.add(deltas[j], (lamda/len(inputs))*self.layers[j].weights))
+            if gradCheck:#GradCheck variable holds epsilon for the amount a parameter is increased
+                dTheta = deltas[0].flatten()
+                for l in range(1, len(deltas)):
+                    dTheta = np.hstack((dTheta, deltas[l].flatten()))
+                dThetaError = []
+                for l in range(len(self.layers)):#layers
+                    for i in range(len(self.layers[l].weights)):#units
+                        for k in range(len(self.layers.weights[i,:])):#weights
+                            tempWeightsAdd = [layer.weights for layer in self.layers]
+                            tempWeightsAdd[l][i][k] += gradCheck
+                            tempWeightsSub = [layer.weights for layer in self.layers]
+                            tempWeightsSub[l][i][k] -= gradCheck
+                            activations = inputs
+                            for weights in tempWeightsAdd:
+                                activations = self.ReLu(np.matmul(activations, weights.transpose()))
+                                activations[activations == 1] = 0.999999999999999999
+                                activations[activations == 0] = 0.000000000000000001
+                            costAdded = -np.sum(np.multiply(self.y, activations) - np.multiply(np.subtract(1, self.y), np.log(np.subtract(1, activations)))) / len(activations) \
+                                        + (lamda / (2 * len(activations))) * np.sum([np.sum(weights) for weights in tempWeightsAdd])
+                            activations = inputs
+                            for weights in tempWeightsSub:
+                                activations = self.ReLu(np.matmul(activations, weights.transpose()))
+                                activations[activations == 1] = 0.999999999999999999
+                                activations[activations == 0] = 0.000000000000000001
+                            costSubbed = -np.sum(np.multiply(self.y, activations) - np.multiply(np.subtract(1, self.y), np.log(np.subtract(1, activations)))) / len(activations) \
+                                        + (lamda / (2 * len(activations))) * np.sum([np.sum(weights) for weights in tempWeightsAdd])
+                            error = (costAdded - costSubbed)/(2*gradCheck)
+                            dThetaError.append(error)
+                dError = np.linalg.norm(dTheta, dThetaError)/(np.linalg.norm(dTheta) + np.linalg.norm(dThetaError))
+
+
+
+            print("COST:", self.findCost(size=len(y), lamda=lamda))
+            self.costs.append(self.findCost(size=len(y), lamda=lamda))
             self.costsIters.append(self.index)
             self.index += 1
+
 
         # Forward
         self.layers[0].z = np.matmul(inputs, self.layers[0].weights.transpose())
@@ -100,15 +139,15 @@ class network:
                 self.layers[l].activation = np.insert(self.layers[l].activation, 0, 1, axis=1)
         #print("Answers:", self.layers[-1].activation)
 
-    def findCost(self, size=None):
+    def findCost(self, size=None, lamda=0):
         if not size:
             size = len(self.y)# Finds cost after the entire dataset has been proccessed
         self.layers[-1].activation = np.round(self.layers[-1].activation, 10)
         self.layers[-1].activation[self.layers[-1].activation == 1] = 0.999999999999
         self.layers[-1].activation[self.layers[-1].activation == 0] = 0.000000000001
         self.cost = -np.sum(np.multiply(self.y[0:size,:], np.log(self.layers[-1].activation[0:size, :])) - np.multiply( #Takes the last size amount from self.results, which matches
-            np.subtract(1, self.y[0:size, :]), np.log(self.layers[-1].activation[0:size, :]))) / len(self.layers[-1].activation[0:size, :]) \
-             + (self.lamda / (2 * len(self.layers[-1].activation))) * np.sum([np.sum(self.layers[j].weights) for j in range(len(self.layers))])
+            np.subtract(1, self.y[0:size, :]), np.log(np.subtract(1, self.layers[-1].activation[0:size, :])))) / len(self.layers[-1].activation[0:size, :]) \
+             + (lamda / (2 * len(self.layers[-1].activation))) * np.sum([np.sum(self.layers[j].weights) for j in range(len(self.layers))])
         return self.cost
 
     def predict(self, inputs):
@@ -130,18 +169,23 @@ class network:
         results = np.where(results == False, 0, results)
         results = results[0]
         accuracy = np.sum(results) / len(results)
-        print(f"Test Accuracy: {accuracy*100}%")
+        return accuracy
 
-    def plot(self, costs=True, accuracies=True):
+    def plot(self, costs=True, trainAccuracies=True, testAccuracies=True):
         if costs:
             plt.plot(self.costsIters, self.costs)
             plt.xlabel("Training Iteration")
             plt.ylabel("Cost")
             plt.show()
-        if accuracies:
-            plt.plot(self.accuracyIters, self.accuracies)
+        if trainAccuracies:
+            plt.plot(self.trainAccuracyIters, self.trainAccuracies)
             plt.xlabel("Training Iteration")
-            plt.ylabel("Accuracy")
+            plt.ylabel("Training Accuracy")
+            plt.show()
+        if testAccuracies:
+            plt.plot(self.testAccuracyIters, self.testAccuracies)
+            plt.xlabel("Training Iteration")
+            plt.ylabel("Training Accuracy")
             plt.show()
 
     def learningCurve(self, size=None): #Broken
@@ -217,9 +261,7 @@ y_test = y_test.reshape(-1,1)
 # y_test = y_test[~np.isnan(y_test).any(axis=1)]#Removes rows from inputs and output of rows in input that have NAN values
 n = network([800, 10], x_train, y_train)
 #print([layer.weights for layer in n.layers])
-n.train(n.input.inputs, runs=20, rate=0.000003)
-
-n.test(x_test, y_test)
+n.train(n.input.inputs, runs=10, rate=0.000002, gradCheck=True)
 n.plot()
 
 #print([layer.weights for layer in n.layers])
