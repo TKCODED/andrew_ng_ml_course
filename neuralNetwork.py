@@ -36,17 +36,17 @@ class network:
         self.accuracyIters = []
         self.index = 0
 
-    def train(self, inputs, runs=1, rate=1, dropout=None):# Works only for balanced networks and regularization for gradients have not been added
+    def train(self, inputs, runs=1, rate=1.0, dropout=False):# Works only for balanced networks and regularization for gradients have not been added
         for _ in range(runs):
             #Forward
             self.layers[0].z = np.matmul(inputs, self.layers[0].weights.transpose())
             self.layers[0].activation = self.ReLu(np.array(self.layers[0].z))
-            accuracy = np.sum(results) / len(results)
-            if dropout:#Droput variable hold the percentage of units that are kept thus is from 0-1
-                dropMatrix = np.random.rand(self.layers[0].activation.shape[0], self.layers[0].activation.shape[1]) < dropout
+            if dropout:  # Droput variable hold the percentage of units that are kept thus is from 0-1
+                dropMatrix = np.random.rand(self.layers[0].activation.shape[0],
+                                            self.layers[0].activation.shape[1]) < dropout
                 self.layers[0].activation = np.multiply(self.layers[0].activation, dropMatrix)
                 self.layers[0].activation /= dropout
-                #Applied before putting in the bias term to not drop it
+                # Applied before putting in the bias term to not drop it
             if len(self.layers) - 1 != 0:
                 self.layers[0].activation = np.insert(self.layers[0].activation, 0, 1, axis=1)
             for l in range(1, len(self.layers)):
@@ -62,9 +62,10 @@ class network:
             self.results = np.vstack((self.results, self.layers[-1].activation))
             #print("Answers:", self.layers[-1].activation)
             #Accuracy
-            results = np.equal(np.argmax(self.layers[-1].activation, axis=1), self.labels).transpose()[0]
+            results = np.equal(np.argmax(self.layers[-1].activation, axis=1), self.labels.transpose())
             results = np.where(results == True, 1, results)
             results = np.where(results == False, 0, results)
+            results = results[0]
             accuracy = np.sum(results) / len(results)
             self.accuracies.append(accuracy)
             self.accuracyIters.append(self.index)
@@ -102,27 +103,33 @@ class network:
     def findCost(self, size=None):
         if not size:
             size = len(self.y)# Finds cost after the entire dataset has been proccessed
-        # self.layers[-1].activation = np.round(self.layers[-1].activation, 10)
-        # self.layers[-1].activation[self.layers[-1].activation == 1] = 0.999999999
-        # self.layers[-1].activation[self.layers[-1].activation == 0] = 0.000000001
+        self.layers[-1].activation = np.round(self.layers[-1].activation, 10)
+        self.layers[-1].activation[self.layers[-1].activation == 1] = 0.999999999999
+        self.layers[-1].activation[self.layers[-1].activation == 0] = 0.000000000001
         self.cost = -np.sum(np.multiply(self.y[0:size,:], np.log(self.layers[-1].activation[0:size, :])) - np.multiply( #Takes the last size amount from self.results, which matches
             np.subtract(1, self.y[0:size, :]), np.log(self.layers[-1].activation[0:size, :]))) / len(self.layers[-1].activation[0:size, :]) \
              + (self.lamda / (2 * len(self.layers[-1].activation))) * np.sum([np.sum(self.layers[j].weights) for j in range(len(self.layers))])
         return self.cost
 
-    def predict(self, input):
-        input = np.array(input).reshape(-1, 1).transpose()
-        for layer in self.layers:
-            input = np.insert(input, 0, 1, axis=1)
-            input = self.ReLu(np.matmul(input, layer.weights.transpose()))
-        return input
+    def predict(self, inputs):
+        inputs = np.array(inputs)
+        inputs = self.preproccessing(inputs)
+        for l in range(len(self.layers)):
+            inputs = np.insert(inputs, 0, 1, axis=1)
+            if l == 0:
+                inputs = self.ReLu(np.matmul(inputs, self.layers[l].weights[:, 0:len(inputs)].transpose()))
+            else:
+                inputs = self.ReLu(np.matmul(inputs, self.layers[l].weights.transpose()))
+        return inputs
 
     def test(self, inputs, outputs):
-        predictions = np.array([np.argmax(self.predict(input)) for input in inputs])
-        results = np.equal(predictions, outputs.transpose())[0]
+        outputs = np.array(outputs)
+        predictions = np.argmax(self.predict(inputs), axis=1)
+        results = np.equal(predictions, outputs.transpose())
         results = np.where(results == True, 1, results)
         results = np.where(results == False, 0, results)
-        accuracy = np.sum(results)/len(results)
+        results = results[0]
+        accuracy = np.sum(results) / len(results)
         print(f"Test Accuracy: {accuracy*100}%")
 
     def plot(self, costs=True, accuracies=True):
@@ -163,11 +170,18 @@ class network:
         input[input <= 0] = 0
         return input
 
+    def preproccessing(self, data):  # So infinities do not come from the const function
+        data = np.subtract(data, np.mean(data, axis=0))
+        std = np.std(data, axis=0)
+        std[std == 0] = 1
+        data = np.divide(data, std)
+        return data
+
     class layer:
         def __init__(self, units, prevNOunits):
             self.units = units
             self.prevNOunits = prevNOunits
-            self.weights = np.array([[random.uniform(10, 30) for _ in range(self.prevNOunits + 1)] for _ in range(self.units)])
+            self.weights = np.random.randn(units, prevNOunits + 1)*np.sqrt(2/prevNOunits)
             self.activation = []
             self.z = []
 
@@ -175,15 +189,17 @@ class network:
         def __init__(self, inputs):
             self.inputs = inputs
             self.inputs = np.insert(self.inputs, 0, 1, axis=1)
-            self.inputs = self.precproccessing(self.inputs)
+            self.inputs = self.preproccessing(self.inputs)
             self.inputs[:, 0] = 1
 
-        def precproccessing(self, data):  # So infinities do not come from the const function
+        def preproccessing(self, data):  # So infinities do not come from the const function
             data = np.subtract(data, np.mean(data, axis=0))
             std = np.std(data, axis=0)
             std[std == 0] = 1
             data /= std
             return data
+
+
 
 
 (x_train, y_train), (x_test, y_test) = mnist.load_data()
@@ -201,11 +217,9 @@ y_test = y_test.reshape(-1,1)
 # y_test = y_test[~np.isnan(y_test).any(axis=1)]#Removes rows from inputs and output of rows in input that have NAN values
 n = network([800, 10], x_train, y_train)
 #print([layer.weights for layer in n.layers])
-n.train(n.input.inputs, runs=5, rate=0.00000000000007)
-print(np.argmax(n.layers[-1].activation, axis=1)[:5])
-print(y_train[:5].reshape(-1, 1).transpose())
+n.train(n.input.inputs, runs=20, rate=0.000003)
 
 n.test(x_test, y_test)
-#n.plot()
+n.plot()
 
 #print([layer.weights for layer in n.layers])
