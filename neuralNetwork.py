@@ -39,16 +39,138 @@ class network:
         self.testAccuracies = []
         self.testAccuracyIters = []
         self.index = 0
+        self.vdW = [np.zeros(layer.weights.shape) for layer in self.layers]
+        self.sdW = [np.zeros(layer.weights.shape) for layer in self.layers]
+        self.epsilon = 0.0000001
+        self.bestWeights = []
+        self.bestEpoch = 0
 
-    def train(self, inputs, runs=1, rate=1.0, lamda=0, dropout=False, gradCheck=False):# Works only for balanced networks and regularization for gradients have not been added
+    def train(self, epochs=1, rate=1.0, lamda=0, batchSize=False, momentum=False, RMSprop=False, dropout=False, gradCheck=False):# Works only for balanced networks and regularization for gradients have not been added
+        inputs = self.input.inputs
+        if not batchSize:
+            batchSize = len(inputs)
         self.costs = []
         self.costsIters = []
         self.trainAccuracies = []
         self.trainAccuracyIters = []
         self.testAccuracies = []
         self.testAccuracyIters = []
-        for run in range(runs):
-            #Forward
+        for epoch in range(epochs):
+            self.vdW = [np.zeros(layer.weights.shape) for layer in self.layers]#Reset vdW, why? as minibatch resets to 0 every epoch thus bias checking has to be reimplemented each epoch
+            self.sdW = [np.zeros(layer.weights.shape) for layer in self.layers]
+            for minibatch in range(len(inputs)//batchSize):
+                #Forward
+                batchInputs = inputs[batchSize*(minibatch):batchSize*(minibatch + 1), :]
+                self.layers[0].z = np.matmul(batchInputs, self.layers[0].weights.transpose())
+                self.layers[0].activation = self.ReLu(np.array(self.layers[0].z))
+                # Dropout
+                if dropout:  # Droput variable hold the percentage of units that are kept thus is from 0-1
+                    dropMatrix = np.random.rand(self.layers[0].activation.shape[0],
+                                                self.layers[0].activation.shape[1]) < dropout
+                    self.layers[0].activation = np.multiply(self.layers[0].activation, dropMatrix)
+                    self.layers[0].activation /= dropout
+                    # Applied before putting in the bias term to not drop it
+                if len(self.layers) - 1 != 0:
+                    self.layers[0].activation = np.insert(self.layers[0].activation, 0, 1, axis=1)
+                for l in range(1, len(self.layers) - 1):
+                    self.layers[l].z= np.matmul(self.layers[l-1].activation, self.layers[l].weights.transpose())
+                    self.layers[l].activation = self.ReLu(np.array(self.layers[l].z))
+                    #Dropout
+                    if dropout:  # Droput variable hold the percentage of units that are kept thus is from 0-1
+                        dropMatrix = np.random.rand(self.layers[l].activation.shape[0], self.layers[l].activation.shape[1]) < dropout
+                        self.layers[l].activation = np.multiply(self.layers[l].activation, dropMatrix)
+                        self.layers[l].activation /= dropout
+                        # Applied before putting in the bias term to not drop it
+                    self.layers[l].activation = np.insert(self.layers[l].activation, 0, 1, axis=1)
+                self.layers[-1].z = np.matmul(self.layers[-2].activation, self.layers[-1].weights.transpose())
+                self.layers[-1].activation = self.sigmoid(np.array(self.layers[-1].z))
+                self.results = np.vstack((self.results, self.layers[-1].activation))
+                #Accuracy
+                # results = np.equal(np.argmax(self.layers[-1].activation, axis=1), self.labels.transpose())
+                # results = np.where(results == True, 1, results)
+                # results = np.where(results == False, 0, results)
+                # results = results[0]
+                # trainAccuracy = np.sum(results) / len(results)
+                # self.trainAccuracies.append(trainAccuracy)
+                # self.trainAccuracyIters.append(self.index)
+                # print(f"Epoch: {epoch + 1}  Minibatch: {minibatch + 1}")
+                # print(f"Train Accuracy: {trainAccuracy * 100}%")
+                # testAccuracy = self.test(x_test, y_test)
+                # self.testAccuracies.append(testAccuracy)
+                # self.testAccuracyIters.append(self.index)
+                # print(f"Test Accuracy: {testAccuracy * 100}%")
+                # if testAccuracy == max(self.testAccuracies):
+                #     self.bestWeights = [layer.weights.tolist() for layer in self.layers]
+                #     self.bestEpoch = epoch + 1
+
+                #Backprop
+                d = []
+                y = self.y[batchSize*(minibatch):batchSize*(minibatch + 1), :]
+                d.append(np.subtract(self.layers[-1].activation, y))#Does d for the output layer
+                for l in range(len(self.layers) - 1):
+                    epsilon = np.multiply(np.matmul(d[-1], self.layers[-1 - l].weights[:, 1:]), self.ReLuGradient(np.array(self.layers[-2 - l].z)))
+                    d.append(epsilon)
+                d = d[::-1]
+                deltas =[]
+                deltas.append(np.matmul(d[0].transpose(), batchInputs))# Does delta for batchInputs
+                for l in range(1, len(self.layers)):
+                    deltas.append(np.matmul(self.layers[l - 1].activation.transpose(), d[l]).transpose()/len(batchInputs))
+                if not momentum and not RMSprop:
+                    for j in range(len(self.layers)):
+                        self.layers[j].weights = np.subtract(self.layers[j].weights, rate * np.add(deltas[j], (lamda/len(batchInputs))*self.layers[j].weights))
+                elif momentum and not RMSprop:#Momentuum variable holds the beta value or the value that determines over how many previous gradients it averages
+                    for j in range(len(self.layers)):
+                        self.vdW[j] = np.add(momentum*self.vdW[j], (1-momentum)*deltas[j])
+                        self.vdW[j] = np.divide(self.vdW[j], 1-(momentum**(minibatch+1)))
+                        self.layers[j].weights = np.subtract(self.layers[j].weights, rate * np.add(self.vdW[j], (
+                                    lamda / len(batchInputs)) * self.layers[j].weights))
+                elif RMSprop and not momentum:#Momentuum variable holds the beta value or the value that determines over how many previous gradients it averages
+                    for j in range(len(self.layers)):
+                        self.sdW[j] = np.add(RMSprop*self.sdW[j], (1-RMSprop)*np.power(deltas[j], 2))
+                        self.sdW[j] = np.divide(self.sdW[j], 1-(RMSprop**(minibatch+1)))
+                        self.layers[j].weights = np.subtract(self.layers[j].weights, rate * np.add(np.divide(deltas[j], np.sqrt(self.sdW[j]) + self.epsilon), (
+                                    lamda / len(batchInputs)) * self.layers[j].weights))
+                elif momentum and RMSprop:#Momentuum variable holds the beta value or the value that determines over how many previous gradients it averages
+                    for j in range(len(self.layers)):
+                        self.vdW[j] = np.add(momentum * self.vdW[j], (1 - momentum) * deltas[j])
+                        self.vdW[j] = np.divide(self.vdW[j], 1 - (momentum ** (minibatch + 1)))
+                        self.sdW[j] = np.add(RMSprop * self.sdW[j], (1 - RMSprop) * np.power(deltas[j], 2))
+                        self.sdW[j] = np.divide(self.sdW[j], 1 - (RMSprop ** (minibatch+1)))
+                        self.layers[j].weights = np.subtract(self.layers[j].weights, rate * np.add(np.divide(self.vdW[j], np.sqrt(self.sdW[j]) + self.epsilon), (
+                                    lamda / len(batchInputs)) * self.layers[j].weights))
+                #GradCheck
+                if gradCheck:#GradCheck variable holds epsilon for the amount a parameter is increased
+                    dTheta = deltas[0].flatten()
+                    for l in range(1, len(deltas)):
+                        dTheta = np.hstack((dTheta, deltas[l].flatten()))
+                    dThetaError = []
+                    for l in range(len(self.layers)):#layers
+                        for i in range(len(self.layers[l].weights)):#units
+                            for k in range(len(self.layers.weights[i,:])):#weights
+                                tempWeightsAdd = [layer.weights for layer in self.layers]
+                                tempWeightsAdd[l][i][k] += gradCheck
+                                tempWeightsSub = [layer.weights for layer in self.layers]
+                                tempWeightsSub[l][i][k] -= gradCheck
+                                activations = batchInputs
+                                for weights in tempWeightsAdd:
+                                    activations = self.ReLu(np.matmul(activations, weights.transpose()))
+                                    activations[activations == 1] = 0.999999999999999999
+                                    activations[activations == 0] = 0.000000000000000001
+                                costAdded = -np.sum(np.multiply(self.y, activations) - np.multiply(np.subtract(1, self.y), np.log(np.subtract(1, activations)))) / len(activations) \
+                                            + (lamda / (2 * len(activations))) * np.sum([np.sum(weights) for weights in tempWeightsAdd])
+                                activations = batchInputs
+                                for weights in tempWeightsSub:
+                                    activations = self.ReLu(np.matmul(activations, weights.transpose()))
+                                    activations[activations == 1] = 0.999999999999999999
+                                    activations[activations == 0] = 0.000000000000000001
+                                costSubbed = -np.sum(np.multiply(self.y, activations) - np.multiply(np.subtract(1, self.y), np.log(np.subtract(1, activations)))) / len(activations) \
+                                            + (lamda / (2 * len(activations))) * np.sum([np.sum(weights) for weights in tempWeightsAdd])
+                                error = (costAdded - costSubbed)/(2*gradCheck)
+                                dThetaError.append(error)
+                    dError = np.linalg.norm(dTheta, dThetaError)/(np.linalg.norm(dTheta) + np.linalg.norm(dThetaError))
+                    print("Gradient Check Error:", dError)
+            ###INSIDE LOOP##
+            # Forward
             self.layers[0].z = np.matmul(inputs, self.layers[0].weights.transpose())
             self.layers[0].activation = self.ReLu(np.array(self.layers[0].z))
             # Dropout
@@ -61,11 +183,12 @@ class network:
             if len(self.layers) - 1 != 0:
                 self.layers[0].activation = np.insert(self.layers[0].activation, 0, 1, axis=1)
             for l in range(1, len(self.layers) - 1):
-                self.layers[l].z= np.matmul(self.layers[l-1].activation, self.layers[l].weights.transpose())
+                self.layers[l].z = np.matmul(self.layers[l - 1].activation, self.layers[l].weights.transpose())
                 self.layers[l].activation = self.ReLu(np.array(self.layers[l].z))
-                #Dropout
+                # Dropout
                 if dropout:  # Droput variable hold the percentage of units that are kept thus is from 0-1
-                    dropMatrix = np.random.rand(self.layers[l].activation.shape[0], self.layers[l].activation.shape[1]) < dropout
+                    dropMatrix = np.random.rand(self.layers[l].activation.shape[0],
+                                                self.layers[l].activation.shape[1]) < dropout
                     self.layers[l].activation = np.multiply(self.layers[l].activation, dropMatrix)
                     self.layers[l].activation /= dropout
                     # Applied before putting in the bias term to not drop it
@@ -73,7 +196,7 @@ class network:
             self.layers[-1].z = np.matmul(self.layers[-2].activation, self.layers[-1].weights.transpose())
             self.layers[-1].activation = self.sigmoid(np.array(self.layers[-1].z))
             self.results = np.vstack((self.results, self.layers[-1].activation))
-            #Accuracy
+            # Accuracy
             results = np.equal(np.argmax(self.layers[-1].activation, axis=1), self.labels.transpose())
             results = np.where(results == True, 1, results)
             results = np.where(results == False, 0, results)
@@ -81,87 +204,19 @@ class network:
             trainAccuracy = np.sum(results) / len(results)
             self.trainAccuracies.append(trainAccuracy)
             self.trainAccuracyIters.append(self.index)
-            print(f"Run: {run + 1}")
+            print(f"Epoch: {epoch + 1}")
             print(f"Train Accuracy: {trainAccuracy * 100}%")
             testAccuracy = self.test(x_test, y_test)
             self.testAccuracies.append(testAccuracy)
             self.testAccuracyIters.append(self.index)
             print(f"Test Accuracy: {testAccuracy * 100}%")
-            #Backprop
-            d = []
-            y = self.y[0:len(inputs), :]
-            d.append(np.subtract(self.layers[-1].activation, y))#Does d for the output layer
-            for l in range(len(self.layers) - 1):
-                epsilon = np.multiply(np.matmul(d[-1], self.layers[-1 - l].weights[:, 1:]), self.ReLuGradient(np.array(self.layers[-2 - l].z)))
-                d.append(epsilon)
-            d = d[::-1]
-            deltas =[]
-            deltas.append(np.matmul(d[0].transpose(), inputs))# Does delta for inputs
-            for l in range(1, len(self.layers)):
-                deltas.append(np.matmul(self.layers[l - 1].activation.transpose(), d[l]).transpose()/len(inputs))
-            for j in range(len(self.layers)):
-                self.layers[j].weights = np.subtract(self.layers[j].weights, rate * np.add(deltas[j], (lamda/len(inputs))*self.layers[j].weights))
-            #GradCheck
-            if gradCheck:#GradCheck variable holds epsilon for the amount a parameter is increased
-                dTheta = deltas[0].flatten()
-                for l in range(1, len(deltas)):
-                    dTheta = np.hstack((dTheta, deltas[l].flatten()))
-                dThetaError = []
-                for l in range(len(self.layers)):#layers
-                    for i in range(len(self.layers[l].weights)):#units
-                        for k in range(len(self.layers.weights[i,:])):#weights
-                            tempWeightsAdd = [layer.weights for layer in self.layers]
-                            tempWeightsAdd[l][i][k] += gradCheck
-                            tempWeightsSub = [layer.weights for layer in self.layers]
-                            tempWeightsSub[l][i][k] -= gradCheck
-                            activations = inputs
-                            for weights in tempWeightsAdd:
-                                activations = self.ReLu(np.matmul(activations, weights.transpose()))
-                                activations[activations == 1] = 0.999999999999999999
-                                activations[activations == 0] = 0.000000000000000001
-                            costAdded = -np.sum(np.multiply(self.y, activations) - np.multiply(np.subtract(1, self.y), np.log(np.subtract(1, activations)))) / len(activations) \
-                                        + (lamda / (2 * len(activations))) * np.sum([np.sum(weights) for weights in tempWeightsAdd])
-                            activations = inputs
-                            for weights in tempWeightsSub:
-                                activations = self.ReLu(np.matmul(activations, weights.transpose()))
-                                activations[activations == 1] = 0.999999999999999999
-                                activations[activations == 0] = 0.000000000000000001
-                            costSubbed = -np.sum(np.multiply(self.y, activations) - np.multiply(np.subtract(1, self.y), np.log(np.subtract(1, activations)))) / len(activations) \
-                                        + (lamda / (2 * len(activations))) * np.sum([np.sum(weights) for weights in tempWeightsAdd])
-                            error = (costAdded - costSubbed)/(2*gradCheck)
-                            dThetaError.append(error)
-                dError = np.linalg.norm(dTheta, dThetaError)/(np.linalg.norm(dTheta) + np.linalg.norm(dThetaError))
+            if testAccuracy == max(self.testAccuracies):
+                self.bestWeights = [layer.weights.tolist() for layer in self.layers]
+                self.bestEpoch = epoch + 1
             print("COST:", self.findCost(size=len(y), lamda=lamda))
             self.costs.append(self.findCost(size=len(y), lamda=lamda))
             self.costsIters.append(self.index)
             self.index += 1
-        ###INSIDE LOOP##
-        # Forward
-        self.layers[0].z = np.matmul(inputs, self.layers[0].weights.transpose())
-        self.layers[0].activation = self.ReLu(np.array(self.layers[0].z))
-        # Dropout
-        if dropout:  # Droput variable hold the percentage of units that are kept thus is from 0-1
-            dropMatrix = np.random.rand(self.layers[0].activation.shape[0],
-                                        self.layers[0].activation.shape[1]) < dropout
-            self.layers[0].activation = np.multiply(self.layers[0].activation, dropMatrix)
-            self.layers[0].activation /= dropout
-            # Applied before putting in the bias term to not drop it
-        if len(self.layers) - 1 != 0:
-            self.layers[0].activation = np.insert(self.layers[0].activation, 0, 1, axis=1)
-        for l in range(1, len(self.layers) - 1):
-            self.layers[l].z = np.matmul(self.layers[l - 1].activation, self.layers[l].weights.transpose())
-            self.layers[l].activation = self.ReLu(np.array(self.layers[l].z))
-            # Dropout
-            if dropout:  # Droput variable hold the percentage of units that are kept thus is from 0-1
-                dropMatrix = np.random.rand(self.layers[l].activation.shape[0],
-                                            self.layers[l].activation.shape[1]) < dropout
-                self.layers[l].activation = np.multiply(self.layers[l].activation, dropMatrix)
-                self.layers[l].activation /= dropout
-                # Applied before putting in the bias term to not drop it
-            self.layers[l].activation = np.insert(self.layers[l].activation, 0, 1, axis=1)
-        self.layers[-1].z = np.matmul(self.layers[-2].activation, self.layers[-1].weights.transpose())
-        self.layers[-1].activation = self.sigmoid(np.array(self.layers[-1].z))
-        self.results = np.vstack((self.results, self.layers[-1].activation))
 
     def findCost(self, size=None, lamda=0):
         if not size:
@@ -208,8 +263,8 @@ class network:
             plt.show()
         if testAccuracies:
             plt.plot(self.testAccuracyIters, self.testAccuracies)
-            plt.xlabel("Training Iteration")
-            plt.ylabel("Training Accuracy")
+            plt.xlabel("Testing Iteration")
+            plt.ylabel("Testing Accuracy")
             plt.show()
 
     def learningCurve(self, size=None): #Broken
@@ -238,6 +293,14 @@ class network:
         input[input <= 0] = 0
         return input
 
+    def softmax(self, input):
+        input = np.exp(input)
+        print(input.shape)
+        print(np.sum(input, axis=1).reshape(-1,1).shape)
+        input = np.divide(input, np.sum(input, axis=1).reshape(-1, 1))
+        print(input.shape)
+        return input
+
     def preproccessing(self, data):  # So infinities do not come from the const function
         data = np.subtract(data, np.mean(data, axis=0))
         std = np.std(data, axis=0)
@@ -245,12 +308,13 @@ class network:
         data = np.divide(data, std)
         return data
 
-    def save(self, runs, rate, lamda=0):
+    def save(self, rate, batchSize=None, lamda=0):
+        if not batchSize:
+            batchSize = len(self.input.inputs)
         dirpath = os.path.dirname(__file__)
-        modelPath = os.path.join(dirpath, f"neuralNetworkModels\\model-{self.config}-{'{0:.3f}'.format(runs)}-{'{0:.3f}'.format(rate)}-{lamda}-{'{0:.3f}'.format(max(self.trainAccuracies))}-{'{0:.3f}'.format(max(self.testAccuracies))}.json".replace(" ", ""))
+        modelPath = os.path.join(dirpath, f"neuralNetworkModels\\model-{self.config}-{batchSize}-{self.bestEpoch}-{'{0:.5f}'.format(rate)}-{lamda}-{'{0:.3f}'.format(max(self.trainAccuracies))}-{'{0:.3f}'.format(max(self.testAccuracies))}.json".replace(" ", ""))
+        weights = {"weights": self.bestWeights}
         with open(modelPath, "w") as file:
-            weights = [layer.weights.tolist() for layer in self.layers]
-            weights = {"weights": weights}
             json.dump(weights, file)
 
     def load(self, filename):
@@ -304,9 +368,9 @@ y_test = y_test.reshape(-1,1)
 # y_test = y_test[~np.isnan(y_test).any(axis=1)]#Removes rows from inputs and output of rows in input that have NAN values
 n = network([800, 10], x_train, y_train)
 #n.load("model-[800,10]-3.000-0.000-0-0.726-0.723")
-#print([layer.weights for layer in n.layers])
-n.train(n.input.inputs, runs=3, rate=0.00002)
-n.save(runs=3, rate=0.00002)
+#print([layer.weights.shape for layer in n.layers])
+n.train(epochs=100, rate=0.0025, batchSize=1000)#, momentum=0.9, RMSprop=0.999)
+n.save(rate=0.0025, batchSize=1000)
 n.plot()
 
 #print([layer.weights for layer in n.layers])
