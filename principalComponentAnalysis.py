@@ -17,9 +17,9 @@ def pca(data, dimensions=None, variance=0.99):  # PCA takes in a bunch of points
     cov = np.cov(data.transpose())
     U, S, V = np.linalg.svd(cov)
     if not dimensions:
-        for k in range(len(data[0])): #Picks the kth dimension, which gives minumum variance above the variance value
+        for k in reversed(range(len(data[0]))): #Picks the kth dimension, which gives minumum variance above the variance value
             if sum(S[0:k])/sum(S) < variance:
-                dimensions = k-1
+                dimensions = k+1
     Udim = U[:, 0:dimensions]
     z = np.array([np.matmul(Udim.transpose(), data[i, :]) for i in range(len(data))])
     dataApprox = np.array([np.matmul(Udim, z[i]) for i in range(len(z))])
@@ -39,6 +39,6 @@ def visualize(initial, reduced):
 
 
 
-data = [[0, 0, 0], [2, 6, 8], [10, 15, 20], [30, 40, 50]]
-a, b = pca(precproccessing(data))
+data = [[0, 0, 0,0], [2, 6, 8, 10], [10, 15, 20, 25], [30, 40, 50, 60]]
+a, b = pca(precproccessing(data), dimensions=2)
 visualize(b, a)
