@@ -71,7 +71,7 @@ def multiVarLinReg(inputs, outputs, rate=1) -> np.ndarray:
     for input in inputs:
         input.insert(0, 1)#Inserts 1 into each group of label at index 0 to compensate for the constant weight.
     inputs = np.array(inputs)
-    weights = np.full((1, NOofFeatures), 10, np.float32)
+    weights = np.full((1, NOofFeatures), 1, np.float32)
     cost = float(sum([(np.dot(weights, inputs[i]) - outputs[i])**2 for i in range(NOofItems)]))/(2*NOofItems)
     prevCost = 88888888
     index = 0
@@ -80,8 +80,8 @@ def multiVarLinReg(inputs, outputs, rate=1) -> np.ndarray:
     while cost < prevCost:
         tempCost = cost
         temp = weights
-        for j in range(len(weights)):
-            weights[j] -= (rate/NOofItems)*np.sum([(np.matmul(temp, inputs[i]) - outputs[i])*inputs[i] for i in range(NOofItems)])
+        for j in range(weights.shape[1]):
+            weights[0, j] -= (rate/NOofItems)*np.sum(np.multiply(np.dot(temp, inputs.transpose()) - outputs, inputs[:, j]))
         cost = np.sum([(np.matmul(weights, inputs[i]) - outputs[i])**2 for i in range(NOofItems)])/(2*NOofItems)
         costs.append(cost)
         index += 1
@@ -94,30 +94,46 @@ def multiVarLinReg(inputs, outputs, rate=1) -> np.ndarray:
     print(string)#Prints Linear Regression equation
     print("Cost is:", cost)
     plt.plot(iter, costs)
+    plt.xlabel("Iterations")
+    plt.ylabel("Cost")
     plt.show()
-
-    ax = plt.axes(projection='3d')
-    points = inputs.tolist()
-    for i in range(len(points)):
-        points[i].append(outputs[i])
-    points = np.array(points)
-    ax.scatter3D(points[:, 1], points[:, 2], points[:, 3])
-    x = np.linspace(np.amin(points[:, 1], axis=-1) - 5, np.amax(points[:, 1], axis=-1) + 5, num=1000)
-    y = np.linspace(np.amin(points[:, 2], axis=-1) - 5, np.amax(points[:, 2], axis=-1) + 5, num=1000)
-    line = np.array([weights[0][0] + weights[0][1]*x[i] + weights[0][2]*y[i] for i in range(1000)])
-    ax.plot3D(x, y, line, color='r', label=f'Graph of z = {round(weights[0][0], 2)} + {round(weights[0][1], 2)}x + {round(weights[0][2], 2)}y')
-    plt.title(f'Graph of z = {round(weights[0][0], 2)} + {round(weights[0][1], 2)}x + {round(weights[0][2], 2)}y')
-    ax.set_xlabel('x')
-    ax.set_ylabel('y')
-    ax.set_zlabel('z')
-    plt.legend(loc='upper left')
-    plt.grid()
-    plt.show()
+    if NOofFeatures == 2:
+        fig = plt.figure()
+        ax = fig.gca()
+        ax.scatter(inputs[:, 1], outputs)
+        x = np.linspace(np.amin(np.array(inputs)) - 5, np.amax(np.array(inputs)) + 5, num=1000)
+        y = weights[0][0] + weights[0][1]*x
+        plt.plot(x, y, 'r', label=f'y = {round(float(weights[0][0]), 2)} + {round(float(weights[0][1]),2)}x')
+        plt.title(f'Graph of y = {round(float(weights[0][0]), 2)} + {round(float(weights[0][1]), 2)}x')
+        plt.xlabel('x')
+        plt.ylabel('y')
+        plt.legend(loc='upper left')
+        plt.grid()
+        plt.show()
+    if NOofFeatures == 3:
+        ax = plt.axes(projection='3d')
+        points = inputs.tolist()
+        for i in range(len(points)):
+            points[i].append(outputs[i])
+        points = np.array(points)
+        ax.scatter3D(points[:, 1], points[:, 2], points[:, 3])
+        x = np.linspace(np.amin(points[:, 1], axis=-1) - 5, np.amax(points[:, 1], axis=-1) + 5, num=10)
+        y = np.linspace(np.amin(points[:, 2], axis=-1) - 5, np.amax(points[:, 2], axis=-1) + 5, num=10)
+        line = np.array([weights[0][0] + weights[0][1]*x[i] + weights[0][2]*y[i] for i in range(10)])
+        #Cant plot 3D as the equation of a 3d line isnt z=ax+bc REMEMBER LINEAR ALGEBRA
+        ax.plot3D(x, y, line, color='r', label=f'Graph of z = {round(float(weights[0][0]), 2)} + {round(float(weights[0][1]), 2)}x + {round(float(weights[0][2]), 2)}y')
+        plt.title(f'Graph of z = {round(float(weights[0][0]), 2)} + {round(float(weights[0][1]), 2)}x + {round(float(weights[0][2]), 2)}y')
+        ax.set_xlabel('x')
+        ax.set_ylabel('y')
+        ax.set_zlabel('z')
+        plt.legend(loc='upper left')
+        plt.grid()
+        plt.show()
 
     return(weights)
 
 
-input = [[3,4], [11, 12], [13, 14], [20, 21]]
+input = [[3], [11], [13], [20]]
 output = [50, 60, 70, 80]  # First value is constant and thus needs one more value than the number of inputs
 multiVarLinReg(input, output, rate=0.001)
 #linReg([10,20,30],[20,40,60])
