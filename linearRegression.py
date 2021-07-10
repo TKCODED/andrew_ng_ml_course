@@ -1,6 +1,7 @@
 import numpy as np
 from time import perf_counter as pf
 from matplotlib import pyplot as plt
+from mpl_toolkits import mplot3d
 
 
 def timer(function):
@@ -31,28 +32,40 @@ def statsLinReg(points) -> tuple:
 
 @timer
 def linReg(inputs, outputs) -> tuple:
-    RATE = 0.001
+    rate = 0.001
     constant = 10
     gradient = 10
     cost = (1 / 2 * len(inputs)) * sum([(constant + gradient * inputs[i] - outputs[i]) ** 2 for i in range(len(inputs))])
     prevCost = 88888888
     while cost != prevCost:
         temp1, temp2, temp3 = gradient, constant, cost
-        constant -= (RATE / len(inputs)) * sum([(temp2 + temp1*inputs[i] - outputs[i]) for i in range(len(inputs))])
-        gradient -= ((RATE / len(inputs)) * sum([(temp2 + temp1*inputs[i] - outputs[i])*inputs[i] for i in range(len(inputs))]))
+        constant -= (rate / len(inputs)) * sum([(temp2 + temp1*inputs[i] - outputs[i]) for i in range(len(inputs))])
+        gradient -= ((rate / len(inputs)) * sum([(temp2 + temp1*inputs[i] - outputs[i])*inputs[i] for i in range(len(inputs))]))
         cost = (1/2*len(inputs))* sum([(constant + gradient*inputs[i] - outputs[i])**2 for i in range(len(inputs))])
         prevCost = temp3
 
-    print(f'{round(constant, 2)} + {round(gradient, 2)}x')
+    print(f'y = {round(constant, 2)} + {round(gradient, 2)}x')
+    print("COST:", cost)
+    fig = plt.figure()
+    ax = fig.gca()
+    ax.scatter(inputs, outputs)
+    x = np.linspace(np.amin(np.array(inputs)) - 5, np.amax(np.array(inputs)) + 5, num=1000)
+    y = constant + gradient*x
+    plt.plot(x, y, 'r', label=f'y = {round(constant, 2)} + {round(gradient, 2)}x')
+    plt.title(f'Graph of y = {round(constant, 2)} + {round(gradient, 2)}x')
+    plt.xlabel('x')
+    plt.ylabel('y')
+    plt.legend(loc='upper left')
+    plt.grid()
+    plt.show()
     return constant, gradient
 
 
 @timer
-def multiVarLinReg(inputs, outputs) -> np.ndarray:
+def multiVarLinReg(inputs, outputs, rate=1) -> np.ndarray:
     """"
     Takes in 2D-array. Each array is one grouping of each labels values(one point on n-dimensional plane.
     """
-    RATE = 0.001
     NOofFeatures = len(inputs[0]) + 1
     NOofItems = len(inputs)
     for input in inputs:
@@ -68,8 +81,8 @@ def multiVarLinReg(inputs, outputs) -> np.ndarray:
         tempCost = cost
         temp = weights
         for j in range(len(weights)):
-            weights[j] -= (RATE/NOofItems)*sum([(np.dot(temp, inputs[i]) - outputs[i])*inputs[i] for i in range(NOofItems)])
-        cost = float(sum([(np.dot(weights, inputs[i]) - outputs[i])**2 for i in range(NOofItems)]))/(2*NOofItems)
+            weights[j] -= (rate/NOofItems)*np.sum([(np.matmul(temp, inputs[i]) - outputs[i])*inputs[i] for i in range(NOofItems)])
+        cost = np.sum([(np.matmul(weights, inputs[i]) - outputs[i])**2 for i in range(NOofItems)])/(2*NOofItems)
         costs.append(cost)
         index += 1
         iter.append(index)
@@ -82,11 +95,30 @@ def multiVarLinReg(inputs, outputs) -> np.ndarray:
     print("Cost is:", cost)
     plt.plot(iter, costs)
     plt.show()
+
+    ax = plt.axes(projection='3d')
+    points = inputs.tolist()
+    for i in range(len(points)):
+        points[i].append(outputs[i])
+    points = np.array(points)
+    ax.scatter3D(points[:, 1], points[:, 2], points[:, 3])
+    x = np.linspace(np.amin(points[:, 1], axis=-1) - 5, np.amax(points[:, 1], axis=-1) + 5, num=1000)
+    y = np.linspace(np.amin(points[:, 2], axis=-1) - 5, np.amax(points[:, 2], axis=-1) + 5, num=1000)
+    line = np.array([weights[0][0] + weights[0][1]*x[i] + weights[0][2]*y[i] for i in range(1000)])
+    ax.plot3D(x, y, line, color='r', label=f'Graph of z = {round(weights[0][0], 2)} + {round(weights[0][1], 2)}x + {round(weights[0][2], 2)}y')
+    plt.title(f'Graph of z = {round(weights[0][0], 2)} + {round(weights[0][1], 2)}x + {round(weights[0][2], 2)}y')
+    ax.set_xlabel('x')
+    ax.set_ylabel('y')
+    ax.set_zlabel('z')
+    plt.legend(loc='upper left')
+    plt.grid()
+    plt.show()
+
     return(weights)
 
 
-input = [[3, 4, 7, 8, 9], [11, 12, 15, 16, 17], [13, 14, 17, 18, 19], [20, 21, 24, 25, 26]]
+input = [[3,4], [11, 12], [13, 14], [20, 21]]
 output = [50, 60, 70, 80]  # First value is constant and thus needs one more value than the number of inputs
-multiVarLinReg(input, output)
+multiVarLinReg(input, output, rate=0.001)
 #linReg([10,20,30],[20,40,60])
 #statsLinReg([[10,20], [30,40], [50,60]])
